@@ -4,6 +4,17 @@
 const MODELO = "claude-haiku-5-5";
 const MAX_SONHO = 5000, MAX_PERGUNTA = 1000, MAX_IMAGEM = 1500000; // ~1,1 MB de imagem
 const TIPOS = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const crypto = require("crypto");
+
+// Confere a chave de acesso entregue no cadastro (api/cadastro.js).
+function cadastrado(token) {
+  const [dados, sig] = String(token || "").split(".");
+  if (!dados || !sig) return false;
+  const segredo = crypto.createHash("sha256").update("sonia-cadastro:" + (process.env.ANTHROPIC_API_KEY || "")).digest();
+  const esperado = crypto.createHmac("sha256", segredo).update(dados).digest("base64url");
+  const a = Buffer.from(sig), b = Buffer.from(esperado);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 // Limite simples por visitante: no máximo 6 consultas a cada 10 minutos.
 // (Vale por instância do servidor; o limite de gasto no Console é a proteção principal.)
@@ -46,6 +57,7 @@ module.exports = async (req, res) => {
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
   body = body || {};
+  if (!cadastrado(body.token)) return res.status(401).json({ erro: "Faça seu cadastro para consultar a Son.IA." });
   const sonho = String(body.sonho || "").trim().slice(0, MAX_SONHO);
   const q = String(body.pergunta || "").trim().slice(0, MAX_PERGUNTA);
   const imagem = typeof body.imagem === "string" ? body.imagem : "";
